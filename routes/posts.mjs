@@ -180,13 +180,13 @@ router.post("/survey-boxes/:boxId/managers", isAdmin, async (req, res) => {
 
 
 
-// Create a new survey in a SurveyBox (admin or manager with access)
-router.post("/survey-boxes/:boxId/surveys", isManager, async (req, res) => {
-  // Check if the user is an admin or a manager with access to the SurveyBox
-  if (req.isAdmin || req.isManager) {
-    const { boxId } = req.params;
-    const { name, questions } = req.body;
+// Create a new survey in a SurveyBox (admin only)
+router.post("/admin/survey-boxes/:boxId/surveys", isAdmin, async (req, res) => {
+  const { boxId } = req.params;
+  const { name, questions } = req.body;
 
+  // Check if the user is an admin
+  if (req.isAdmin) {
     // Check if a SurveyBox with the specified ID exists
     const collection = await db.collection("surveys");
 
@@ -219,6 +219,7 @@ router.post("/survey-boxes/:boxId/surveys", isManager, async (req, res) => {
     res.status(403).send("Forbidden");
   }
 });
+
 
 
 // Create a new survey response (manager or survey participant)
@@ -359,6 +360,28 @@ router.get("/surveys/:surveyId", isManagerForGET, async (req, res) => {
   res.status(200).json(survey);
 });
 
+
+// Get a single survey by ID (admin only)
+router.get("/admin/surveys/:surveyId", isAdminForGET, async (req, res) => {
+  const { surveyId } = req.params;
+
+  // Check if the user is an admin
+  if (req.isAdmin) {
+    // Find the survey by its ID
+    const surveyCollection = await db.collection("surveys");
+    const survey = await surveyCollection.findOne({ _id: surveyId });
+
+    if (!survey) {
+      return res.status(404).send("Survey not found.");
+    }
+
+    res.status(200).json(survey);
+  } else {
+    res.status(403).send("Forbidden");
+  }
+});
+
+
 // Count answer selections for each question in the survey (GET request)
 router.get("/survey-score/:surveyId", isManagerForGET, async (req, res) => {
   const { surveyId } = req.params;
@@ -409,6 +432,119 @@ router.get("/survey-score/:surveyId", isManagerForGET, async (req, res) => {
   };
 
   res.status(200).json(surveyWithScores);
+});
+
+// Get a single survey by ID (admin only)
+router.get("/admin/surveys/:surveyId", isAdminForGET, async (req, res) => {
+  const { surveyId } = req.params;
+
+  // Check if the user is an admin
+  if (req.isAdmin) {
+    // Find the survey by its ID
+    const surveyCollection = await db.collection("surveys");
+    const survey = await surveyCollection.findOne({ _id: surveyId });
+
+    if (!survey) {
+      return res.status(404).send("Survey not found.");
+    }
+
+    res.status(200).json(survey);
+  } else {
+    res.status(403).send("Forbidden");
+  }
+});
+
+// Count answer selections for each question in the survey (GET request - admin only)
+router.get("/admin/survey-score/:surveyId", isAdminForGET, async (req, res) => {
+  const { surveyId } = req.params;
+
+  // Check if the user is an admin
+  if (req.isAdmin) {
+    // Find the survey by its ID
+    const surveyCollection = await db.collection("surveys");
+    const survey = await surveyCollection.findOne({ _id: surveyId });
+
+    if (!survey) {
+      return res.status(404).send("Survey not found.");
+    }
+
+    // Find all responses for the survey
+    const responseCollection = await db.collection("survey_responses");
+    const responses = await responseCollection.find({ surveyId }).toArray();
+
+    // Initialize a scoring object to store the counts
+    const scoring = {};
+
+    // Initialize the scoring object with question and answer options
+    survey.questions.forEach((question) => {
+      scoring[question.text] = {};
+
+      question.options.forEach((option) => {
+        scoring[question.text][option] = 0;
+      });
+    });
+
+    // Count selections for each answer option
+    responses.forEach((response) => {
+      response.answers.forEach((answer) => {
+        scoring[answer.question][answer.selectedOption]++;
+      });
+    });
+
+    // Modify the survey data to include scores
+    const surveyWithScores = {
+      _id: survey._id,
+      boxId: survey.boxId,
+      name: survey.name,
+      questions: survey.questions.map((question) => ({
+        text: question.text,
+        options: question.options.map((option) => ({
+          option: option,
+          score: scoring[question.text][option],
+        })),
+      })),
+    };
+
+    res.status(200).json(surveyWithScores);
+  } else {
+    res.status(403).send("Forbidden");
+  }
+});
+
+
+// Get all surveys in a survey box (admin only)
+router.get("/admin/survey-boxes/:boxId/surveys", isAdminForGET, async (req, res) => {
+  const { boxId } = req.params;
+
+  // Check if the user is an admin
+  if (req.isAdmin) {
+    // Find all surveys in the specified survey box without projection
+    const surveyCollection = await db.collection("surveys");
+    const surveys = await surveyCollection
+      .find({ boxId })
+      .toArray(); // No projection, so it includes all survey data
+
+    res.status(200).json(surveys);
+  } else {
+    res.status(403).send("Forbidden");
+  }
+});
+
+
+// Get the total number of collected responses for a survey (admin only)
+router.get("/admin/surveys/:surveyId/total-responses", isAdminForGET, async (req, res) => {
+  const { surveyId } = req.params;
+
+  // Check if the user is an admin
+  if (req.isAdmin) {
+    // Find all responses for the survey
+    const responseCollection = await db.collection("survey_responses");
+    const responseCount = await responseCollection.countDocuments({ surveyId });
+
+    res.status(200).json({ totalResponses: responseCount });
+  } else {
+    res.status(403).send("Forbidden");
+  }
 });
 
 
