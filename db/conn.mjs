@@ -1,13 +1,13 @@
 import { MongoClient } from "mongodb";
 
-const connectionString = process.env.DATABASE_URI || "";
-
+const connectionString = "mongodb://AdminSqord:madsus123@165.232.124.122:27017/";
+/* process.env.DATABASE_URI || */
 const client = new MongoClient(connectionString);
 
 let conn;
 try {
   conn = await client.connect();
-} catch(e) {
+} catch (e) {
   console.error(e);
 }
 

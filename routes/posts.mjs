@@ -1,7 +1,7 @@
 import express from "express";
 import db from "../db/conn.mjs";
 import { v4 as uuidv4 } from "uuid"; // You may need to install this package
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 const router = express.Router();
 
