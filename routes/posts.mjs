@@ -265,6 +265,100 @@ router.post("/survey-responses/:surveyId", isManager, async (req, res) => {
 });
 
 
+// Add an existing manager to a SurveyBox (admin only)
+router.post("/survey-boxes/:boxId/add-manager", isAdmin, async (req, res) => {
+  const { boxId } = req.params;
+  const { managerUsername } = req.body;
+
+  // Check if a SurveyBox with the specified ID exists
+  const surveyBoxCollection = await db.collection("survey_boxes");
+  const surveyBox = await surveyBoxCollection.findOne({ _id: boxId });
+
+  if (!surveyBox) {
+    return res.status(404).send("SurveyBox not found.");
+  }
+
+  // Check if a manager with the specified username exists
+  const managerCollection = await db.collection("managers");
+  const manager = await managerCollection.findOne({ username: managerUsername });
+
+  if (!manager) {
+    return res.status(404).send("Manager not found.");
+  }
+
+  // Check if the manager is already in the SurveyBox
+  if (surveyBox.managers.includes(managerUsername)) {
+    return res.status(400).send("Manager is already in the SurveyBox.");
+  }
+
+  // Update the survey box document to include the new manager
+  surveyBox.managers.push(managerUsername);
+
+  // Update the survey box document with the new managers list
+  const updateResult = await surveyBoxCollection.updateOne(
+    { _id: boxId },
+    { $set: { managers: surveyBox.managers } }
+  );
+
+  if (updateResult.acknowledged) {
+    res.status(201).send("Manager added to the SurveyBox successfully.");
+  } else {
+    res.status(500).send("Failed to update the survey box.");
+  }
+});
+
+// Custom route to delete a SurveyBox and its associated surveys (admin only) using a POST request
+router.post("/survey-boxes/:boxId/delete", isAdmin, async (req, res) => {
+  const { boxId } = req.params;
+
+  // Check if a SurveyBox with the specified ID exists
+  const surveyBoxCollection = await db.collection("survey_boxes");
+  const surveyBox = await surveyBoxCollection.findOne({ _id: boxId });
+
+  if (!surveyBox) {
+    return res.status(404).send("SurveyBox not found.");
+  }
+
+  // Delete the SurveyBox
+  const deleteResult = await surveyBoxCollection.deleteOne({ _id: boxId });
+
+  if (!deleteResult.acknowledged) {
+    return res.status(500).send("Failed to delete the SurveyBox.");
+  }
+
+  // Delete all surveys associated with the SurveyBox
+  const surveyCollection = await db.collection("surveys");
+  const deleteSurveysResult = await surveyCollection.deleteMany({ boxId: boxId });
+
+  if (!deleteSurveysResult.acknowledged) {
+    return res.status(500).send("Failed to delete surveys associated with the SurveyBox.");
+  }
+
+  res.status(200).send("SurveyBox and associated surveys deleted successfully.");
+});
+
+// Custom route to delete a single survey by ID (admin only) using a POST request
+router.post("/admin/surveys/:surveyId/delete", isAdmin, async (req, res) => {
+  const { surveyId } = req.params;
+
+  // Check if a survey with the specified ID exists
+  const surveyCollection = await db.collection("surveys");
+  const survey = await surveyCollection.findOne({ _id: surveyId });
+
+  if (!survey) {
+    return res.status(404).send("Survey not found.");
+  }
+
+  // Delete the survey
+  const deleteResult = await surveyCollection.deleteOne({ _id: surveyId });
+
+  if (!deleteResult.acknowledged) {
+    return res.status(500).send("Failed to delete the survey.");
+  }
+
+  res.status(200).send("Survey deleted successfully.");
+});
+
 
 // Get all survey boxes that a manager can access
 router.get("/manager/:managerId/survey-boxes", isManagerForGET, async (req, res) => {
